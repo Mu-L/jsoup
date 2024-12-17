@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ import static org.jsoup.parser.TokenQueue.escapeCssIdentifier;
  <p>
  From an Element, you can extract data, traverse the node graph, and manipulate the HTML.
 */
-public class Element extends Node {
+public class Element extends Node implements Iterable<Element> {
     private static final List<Element> EmptyChildren = Collections.emptyList();
     private static final Pattern ClassSplit = Pattern.compile("\\s+");
     private static final String BaseUriKey = Attributes.internalKey("baseUri");
@@ -484,6 +485,39 @@ public class Element extends Node {
      */
     public Elements select(Evaluator evaluator) {
         return Selector.select(evaluator, this);
+    }
+
+    /**
+     Selects elements from the given root that match the specified {@link Selector} CSS query, with this element as the
+     starting context, and returns them as a lazy Stream. Matched elements may include this element, or any of its
+     children.
+     <p>
+     Unlike {@link #select(String query)}, which returns a complete list of all matching elements, this method returns a
+     {@link Stream} that processes elements lazily as they are needed. The stream operates in a "pull" model — elements
+     are fetched from the root as the stream is traversed. You can use standard {@code Stream} operations such as
+     {@code filter}, {@code map}, or {@code findFirst} to process elements on demand.
+     </p>
+
+     @param cssQuery a {@link Selector} CSS-like query
+     @return a {@link Stream} containing elements that match the query (empty if none match)
+     @throws Selector.SelectorParseException (unchecked) on an invalid CSS query.
+     @see Selector selector query syntax
+     @see QueryParser#parse(String)
+     @since 1.19.1
+     */
+    public Stream<Element> selectStream(String cssQuery) {
+        return Selector.selectStream(cssQuery, this);
+    }
+
+    /**
+     Find a Stream of elements that match the supplied Evaluator.
+
+     @param evaluator an element Evaluator
+     @return a {@link Stream} containing elements that match the query (empty if none match)
+     @since 1.19.1
+     */
+    public Stream<Element> selectStream(Evaluator evaluator) {
+        return Selector.selectStream(evaluator, this);
     }
 
     /**
@@ -1125,12 +1159,7 @@ public class Element extends Node {
      */
     public @Nullable Element getElementById(String id) {
         Validate.notEmpty(id);
-
-        Elements elements = Collector.collect(new Evaluator.Id(id), this);
-        if (elements.size() > 0)
-            return elements.get(0);
-        else
-            return null;
+        return Collector.findFirst(new Evaluator.Id(id), this);
     }
 
     /**
@@ -1883,15 +1912,20 @@ public class Element extends Node {
      Perform the supplied action on this Element and each of its descendant Elements, during a depth-first traversal.
      Elements may be inspected, changed, added, replaced, or removed.
      @param action the function to perform on the element
-     @return this Element, for chaining
      @see Node#forEachNode(Consumer)
-     @deprecated use {@link #stream()}.{@link Stream#forEach(Consumer) forEach(Consumer)} instead. (Removing this method
-     so Element can implement Iterable, which this signature conflicts with due to the non-void return.)
      */
-    @Deprecated
-    public Element forEach(Consumer<? super Element> action) {
+    @Override
+    public void forEach(Consumer<? super Element> action) {
         stream().forEach(action);
-        return this;
+    }
+
+    /**
+     Returns an Iterator that iterates this Element and each of its descendant Elements, in document order.
+     @return an Iterator
+     */
+    @Override
+    public Iterator<Element> iterator() {
+        return new NodeIterator<>(this, Element.class);
     }
 
     @Override

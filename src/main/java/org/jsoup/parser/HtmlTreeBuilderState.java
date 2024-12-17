@@ -7,6 +7,7 @@ import org.jsoup.nodes.Attributes;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.DocumentType;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Range;
 
 import java.util.ArrayList;
 
@@ -107,6 +108,7 @@ enum HtmlTreeBuilderState {
                 tb.insertCharacterNode(t.asCharacter()); // out of spec - include whitespace
                 return true;
             }
+            final String name;
             switch (t.type) {
                 case Comment:
                     tb.insertCommentNode(t.asComment());
@@ -116,7 +118,7 @@ enum HtmlTreeBuilderState {
                     return false;
                 case StartTag:
                     Token.StartTag start = t.asStartTag();
-                    String name = start.normalName();
+                    name = start.normalName();
                     if (name.equals("html")) {
                         return InBody.process(t, tb);
                     } else if (inSorted(name, InHeadEmpty)) {
@@ -371,12 +373,7 @@ enum HtmlTreeBuilderState {
                     stack = tb.getStack();
                     if (stack.size() > 0) {
                         Element html = tb.getStack().get(0);
-                        if (startTag.hasAttributes()) {
-                            for (Attribute attribute : startTag.attributes) {
-                                if (!html.hasAttr(attribute.getKey()))
-                                    html.attributes().put(attribute);
-                            }
-                        }
+                        mergeAttributes(startTag, html);
                     }
                     break;
                 case "body":
@@ -388,13 +385,8 @@ enum HtmlTreeBuilderState {
                     } else {
                         tb.framesetOk(false);
                         // will be on stack if this is a nested body. won't be if closed (which is a variance from spec, which leaves it on)
-                        Element body;
-                        if (startTag.hasAttributes() && (body = tb.getFromStack("body")) != null) { // we only ever put one body on stack
-                            for (Attribute attribute : startTag.attributes) {
-                                if (!body.hasAttr(attribute.getKey()))
-                                    body.attributes().put(attribute);
-                            }
-                        }
+                        Element body = tb.getFromStack("body");
+                        if (body != null) mergeAttributes(startTag, body);
                     }
                     break;
                 case "frameset":
@@ -1245,10 +1237,12 @@ enum HtmlTreeBuilderState {
     },
     InTableBody {
         @Override boolean process(Token t, HtmlTreeBuilder tb) {
+            final String name;
+
             switch (t.type) {
                 case StartTag:
                     Token.StartTag startTag = t.asStartTag();
-                    String name = startTag.normalName();
+                    name = startTag.normalName();
                     if (name.equals("tr")) {
                         tb.clearStackToTableBodyContext();
                         tb.insertElementFor(startTag);
@@ -1434,6 +1428,8 @@ enum HtmlTreeBuilderState {
     },
     InSelect {
         @Override boolean process(Token t, HtmlTreeBuilder tb) {
+            final String name;
+
             switch (t.type) {
                 case Character:
                     Token.Character c = t.asCharacter();
@@ -1452,7 +1448,7 @@ enum HtmlTreeBuilderState {
                     return false;
                 case StartTag:
                     Token.StartTag start = t.asStartTag();
-                    String name = start.normalName();
+                    name = start.normalName();
                     if (name.equals("html"))
                         return tb.process(start, InBody);
                     else if (name.equals("option")) {
@@ -1840,6 +1836,20 @@ enum HtmlTreeBuilderState {
             return tb.state().process(t, tb);
         }
     };
+
+    private static void mergeAttributes(Token.StartTag source, Element dest) {
+        if (!source.hasAttributes()) return;
+        for (Attribute attr : source.attributes) { // only iterates public attributes
+            Attributes destAttrs = dest.attributes();
+            if (!destAttrs.hasKey(attr.getKey())) {
+                Range.AttributeRange range = attr.sourceRange(); // need to grab range before its parent changes
+                destAttrs.put(attr);
+                if (source.trackSource) { // copy the attribute range
+                    destAttrs.sourceRange(attr.getKey(), range);
+                }
+            }
+        }
+    }
 
     private static final String nullString = String.valueOf('\u0000');
 

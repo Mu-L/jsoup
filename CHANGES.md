@@ -1,12 +1,59 @@
 # jsoup Changelog
 
-## 1.18.2 (Pending)
+## 1.19.1 (PENDING)
+
+### Changes
+
+* Updated the minimum Android API Level validation from 10 to **21**. As with previous jsoup versions, Android
+  developers need to enable core library desugaring. The minimum Java version remains Java 8.
+  [2173](https://github.com/jhy/jsoup/pull/2173)
+* Removed previously deprecated class: `org.jsoup.UncheckedIOException` (replace with `java.io.UncheckedIOException`);
+  method `Element Element#forEach(Consumer)` to
+  `void Element#forEach(Consumer())`. [2246](https://github.com/jhy/jsoup/pull/2246)
+* Deprecated the methods `Document#updateMetaCharsetElement(bool)` and `#Document#updateMetaCharsetElement()`, as the
+  setting had no effect. When `Document#charset(Charset)` is called, the document's meta charset or XML encoding
+  instruction is always set. [2247](https://github.com/jhy/jsoup/pull/2247)
+
+### Improvements
+
+* When cleaning HTML with a `Safelist` that preserves relative links, the `isValid()` method will now consider these
+  links valid. Additionally, the enforced attribute `rel=nofollow` will only be added to external links when configured
+  in the safelist. [2245](https://github.com/jhy/jsoup/pull/2245)
+* Added `Element#selectStream(String query)` and `Element#selectStream(Evaluator )` methods, that return a `Stream` of
+  matching elements. Elements are evaluated and returned as they are found, and the stream can be
+  terminated early. [2092](https://github.com/jhy/jsoup/pull/2092)
+* `Element` objects now implement `Iterable`, enabling them to be used in enhanced for loops.
+* Added support for fragment parsing from a `Reader` via
+  `Parser#parseFragmentInput(Reader, Element, String)`. [1177](https://github.com/jhy/jsoup/issues/1177)
+* Reintroduced CLI executable examples, in `jsoup-examples.jar`. [1702](https://github.com/jhy/jsoup/issues/1702)
+
+### Bug Fixes
+
+* For backwards compatibility, reverted the internal attribute key for doctype names to 
+  "name". [2241](https://github.com/jhy/jsoup/issues/2241)
+* In `Connection`, skip cookies that have no name, rather than throwing a validation
+  exception. [2242](https://github.com/jhy/jsoup/issues/2242)
+* When running on JDK 1.8, the error `java.lang.NoSuchMethodError: java.nio.ByteBuffer.flip()Ljava/nio/ByteBuffer;`
+  could be thrown when calling `Response#body()` after parsing from a URL and the buffer size was
+  exceeded. [2250](https://github.com/jhy/jsoup/pull/2250)
+
+## 1.18.3 (2024-Dec-02)
+
+### Bug Fixes
+
+* When serializing to XML, attribute names containing `-`, `.`, or digits were incorrectly marked as invalid and
+  removed. [2235](https://github.com/jhy/jsoup/issues/2235) 
+* If an element has an `;` in an attribute name, it could not be converted to a W3C DOM element, and so subsquent XPath
+  queries could miss that element. Now, the attribute name is more completely
+  normalized. [2244](https://github.com/jhy/jsoup/issues/2244)
+
+## 1.18.2 (2024-Nov-27)
 
 ### Improvements
 
 * Optimized the throughput and memory use throughout the input read and parse flows, with heap allocations and GC 
   down between -6% and -89%, and throughput improved up to +143% for small inputs. Most inputs sizes will see 
-  throughput increases of ~ 20%. These performance improvements come through recycling the backing byte[] and char[] 
+  throughput increases of ~ 20%. These performance improvements come through recycling the backing `byte[]` and `char[]` 
   arrays used to read and parse the input. [2186](https://github.com/jhy/jsoup/pull/2186) 
 * Speed optimized `html()` and `Entities.escape()` when the input contains UTF characters in a supplementary plane, by
   around 49%. [2183](https://github.com/jhy/jsoup/pull/2183)
@@ -15,6 +62,8 @@
 * In the `TreeBuilder`, the `onNodeInserted()` and `onNodeClosed()` events are now also fired for the outermost /
   root `Document` node. This enables source position tracking on the Document node (which was previously unset). And
   it also enables the node traversor to see the outer Document node. [2182](https://github.com/jhy/jsoup/pull/2182)
+* Selected Elements can now be position swapped inline using
+  `Elements#set()`. [2212](https://github.com/jhy/jsoup/issues/2212)
 
 ### Bug Fixes
 
@@ -35,6 +84,13 @@
   applies appropriate path selection on cookies when making requests. [1831](https://github.com/jhy/jsoup/issues/1831)
 * When parsing named HTML entities, base entities should resolve if they are a prefix of the input token (and not in an
   attribute). [2207](https://github.com/jhy/jsoup/issues/2207)
+* Fixed incorrect tracking of source ranges for attributes merged from late-occurring elements that were implicitly
+  created (`html` or `body`). [2204](https://github.com/jhy/jsoup/issues/2204)
+* Follow the current HTML specification in the tokenizer to allow `<` as part of a tag name, instead of emitting it as a
+  character node. [2230](https://github.com/jhy/jsoup/issues/2230)
+* Similarly, allow a `<` as the start of an attribute name, vs creating a new element. The previous behavior was
+  intended to parse closer to what we anticipated the author's intent to be, but that does not align to the spec or to
+  how browsers behave. [1483](https://github.com/jhy/jsoup/issues/1483)
 
 ## 1.18.1 (2024-Jul-10)
 

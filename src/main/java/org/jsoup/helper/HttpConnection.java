@@ -3,7 +3,6 @@ package org.jsoup.helper;
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Progress;
-import org.jsoup.UncheckedIOException;
 import org.jsoup.UnsupportedMimeTypeException;
 import org.jsoup.internal.ControllableInputStream;
 import org.jsoup.internal.Functions;
@@ -11,7 +10,6 @@ import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.parser.Parser;
 import org.jsoup.parser.StreamParser;
-import org.jsoup.parser.TokenQueue;
 import org.jspecify.annotations.Nullable;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -25,6 +23,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
 import java.net.CookieManager;
 import java.net.CookieStore;
 import java.net.HttpURLConnection;
@@ -859,10 +858,12 @@ public class HttpConnection implements Connection {
             try {
                 conn.connect();
                 if (conn.getDoOutput()) {
-                    OutputStream out = conn.getOutputStream();
-                    try { writePost(req, out, mimeBoundary); }
-                    catch (IOException e) { conn.disconnect(); throw e; }
-                    finally { out.close(); }
+                    try (OutputStream out = conn.getOutputStream()) {
+                        writePost(req, out, mimeBoundary);
+                    } catch (IOException e) {
+                        conn.disconnect();
+                        throw e;
+                    }
                 }
 
                 int status = conn.getResponseCode();
@@ -1390,6 +1391,7 @@ public class HttpConnection implements Connection {
             return value;
         }
 
+        @Override
         public KeyVal inputStream(InputStream inputStream) {
             Validate.notNullParam(value, "inputStream");
             this.stream = inputStream;

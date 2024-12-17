@@ -34,12 +34,12 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import javax.xml.xpath.XPathFactoryConfigurationException;
 import java.io.StringWriter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Stack;
 
 import static javax.xml.transform.OutputKeys.METHOD;
 import static org.jsoup.nodes.Document.OutputSettings.Syntax;
@@ -350,7 +350,7 @@ public class W3CDom {
 
         private final Document doc;
         private boolean namespaceAware = true;
-        private final Stack<HashMap<String, String>> namespacesStack = new Stack<>(); // stack of namespaces, prefix => urn
+        private final ArrayDeque<HashMap<String, String>> namespacesStack = new ArrayDeque<>(); // stack of namespaces, prefix => urn
         private Node dest;
         private Syntax syntax = Syntax.xml; // the syntax (to coerce attributes to). From the input doc if available.
         /*@Nullable*/ private final org.jsoup.nodes.Element contextElement; // todo - unsure why this can't be marked nullable?
@@ -369,6 +369,7 @@ public class W3CDom {
             }
         }
 
+        @Override
         public void head(org.jsoup.nodes.Node source, int depth) {
             namespacesStack.push(new HashMap<>(namespacesStack.peek())); // inherit from above on the stack
             if (source instanceof org.jsoup.nodes.Element) {
@@ -416,6 +417,7 @@ public class W3CDom {
             dest.appendChild(append);
         }
 
+        @Override
         public void tail(org.jsoup.nodes.Node source, int depth) {
             if (source instanceof org.jsoup.nodes.Element && dest.getParentNode() instanceof Element) {
                 dest = dest.getParentNode(); // undescend
@@ -425,9 +427,17 @@ public class W3CDom {
 
         private void copyAttributes(org.jsoup.nodes.Node source, Element el) {
             for (Attribute attribute : source.attributes()) {
-                String key = Attribute.getValidKey(attribute.getKey(), syntax);
-                if (key != null) { // null if couldn't be coerced to validity
-                    el.setAttribute(key, attribute.getValue());
+                // the W3C DOM has a different allowed set of characters than HTML5 (that Attribute.getValidKey return, partic does not allow ';'). So if we except when using HTML, go to more restricted XML
+                try {
+                    String key = Attribute.getValidKey(attribute.getKey(), syntax);
+                    if (key != null) // null if couldn't be coerced to validity
+                        el.setAttribute(key, attribute.getValue());
+                } catch (DOMException e) {
+                    if (syntax != Syntax.xml) {
+                        String key = Attribute.getValidKey(attribute.getKey(), Syntax.xml);
+                        if (key != null)
+                            el.setAttribute(key, attribute.getValue()); // otherwise, will skip attribute
+                    }
                 }
             }
         }

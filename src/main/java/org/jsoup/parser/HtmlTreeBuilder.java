@@ -15,7 +15,6 @@ import org.jsoup.nodes.TextNode;
 import org.jspecify.annotations.Nullable;
 
 import java.io.Reader;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -234,11 +233,8 @@ public class HtmlTreeBuilder extends TreeBuilder {
             if (encoding.equals("text/html") || encoding.equals("application/xhtml+xml"))
                 return true;
         }
-        if (Parser.NamespaceSvg.equals(el.tag().namespace())
-            && StringUtil.in(el.tagName(), TagSvgHtmlIntegration)) // note using .tagName for case-sensitive hit here of foreignObject
-            return true;
-
-        return false;
+        // note using .tagName for case-sensitive hit here of foreignObject
+        return Parser.NamespaceSvg.equals(el.tag().namespace()) && StringUtil.in(el.tagName(), TagSvgHtmlIntegration);
     }
 
     boolean process(Token token, HtmlTreeBuilderState state) {
