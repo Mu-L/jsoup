@@ -1,11 +1,11 @@
 package org.jsoup.nodes;
 
+import org.jsoup.internal.QuietAppendable;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.helper.Validate;
 import org.jsoup.nodes.Document.OutputSettings.Syntax;
 import org.jspecify.annotations.Nullable;
 
-import java.io.IOException;
 
 /**
  * A {@code <!DOCTYPE>} node.
@@ -18,7 +18,6 @@ public class DocumentType extends LeafNode {
     private static final String PubSysKey = "pubSysKey"; // PUBLIC or SYSTEM
     private static final String PublicId = "publicId";
     private static final String SystemId = "systemId";
-    // todo: quirk mode from publicId and systemId
 
     /**
      * Create a new doctype element.
@@ -79,7 +78,7 @@ public class DocumentType extends LeafNode {
     }
 
     @Override
-    void outerHtmlHead(Appendable accum, Document.OutputSettings out) throws IOException {
+    void outerHtmlHead(QuietAppendable accum, Document.OutputSettings out) {
         if (out.syntax() == Syntax.html && !has(PublicId) && !has(SystemId)) {
             // looks like a html5 doctype, go lowercase for aesthetics
             accum.append("<!doctype");

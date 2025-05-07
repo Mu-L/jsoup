@@ -130,7 +130,6 @@ enum HtmlTreeBuilderState {
                             tb.maybeSetBaseUri(el);
                     } else if (name.equals("meta")) {
                         tb.insertEmptyElementFor(start);
-                        // todo: charset switches
                     } else if (name.equals("title")) {
                         HandleTextState(start, tb, TokeniserState.Rcdata);
                     } else if (inSorted(name, InHeadRaw)) {
@@ -287,7 +286,6 @@ enum HtmlTreeBuilderState {
                 case Character: {
                     Token.Character c = t.asCharacter();
                     if (c.getData().equals(nullString)) {
-                        // todo confirm that check
                         tb.error(this);
                         return false;
                     } else if (tb.framesetOk() && isWhitespace(c)) { // don't check if whitespace if frames already closed
@@ -1807,9 +1805,22 @@ enum HtmlTreeBuilderState {
 
                     // Any other start:
                     // (whatwg says to fix up tag name and attribute case per a table - we will preserve original case instead)
-                    tb.insertForeignElementFor(start, tb.currentElement().tag().namespace());
+                    String namespace = tb.currentElement().tag().namespace();
+                    tb.insertForeignElementFor(start, namespace);
                     // (self-closing handled in insert)
                     // if self-closing svg script -- level and execution elided
+
+                    // seemingly not in spec, but as browser behavior, get into ScriptData state for svg script; and allow custom data tags
+                    TokeniserState textState = tb.tagFor(start.tagName.value(), start.normalName, namespace, tb.settings).textState();
+                    if (textState != null) {
+                        if (start.normalName.equals("script"))
+                            tb.tokeniser.transition(TokeniserState.ScriptData);
+                        else
+                            tb.tokeniser.transition(textState);
+                        tb.markInsertionMode();
+                        tb.transition(Text);
+                    }
+
                     break;
 
                 case EndTag:
