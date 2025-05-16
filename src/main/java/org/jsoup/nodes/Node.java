@@ -1,10 +1,10 @@
 package org.jsoup.nodes;
 
 import org.jsoup.helper.Validate;
+import org.jsoup.internal.QuietAppendable;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.parser.ParseSettings;
 import org.jsoup.select.NodeFilter;
-import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 import org.jspecify.annotations.Nullable;
 
@@ -703,7 +703,7 @@ public abstract class Node implements Cloneable {
      */
     public Node traverse(NodeVisitor nodeVisitor) {
         Validate.notNull(nodeVisitor);
-        NodeTraversor.traverse(nodeVisitor, this);
+        nodeVisitor.traverse(this);
         return this;
     }
 
@@ -721,13 +721,13 @@ public abstract class Node implements Cloneable {
     }
 
     /**
-     * Perform a depth-first filtered traversal through this node and its descendants.
+     * Perform a depth-first controllable traversal through this node and its descendants.
      * @param nodeFilter the filter callbacks to perform on each node
      * @return this node, for chaining
      */
     public Node filter(NodeFilter nodeFilter) {
         Validate.notNull(nodeFilter);
-        NodeTraversor.filter(nodeFilter, this);
+        nodeFilter.traverse(this);
         return this;
     }
 
@@ -759,14 +759,18 @@ public abstract class Node implements Cloneable {
      @see Element#text()
      */
     public String outerHtml() {
-        StringBuilder accum = StringUtil.borrowBuilder();
-        outerHtml(accum);
-        return StringUtil.releaseBuilder(accum);
+        StringBuilder sb = StringUtil.borrowBuilder();
+        outerHtml(QuietAppendable.wrap(sb));
+        return StringUtil.releaseBuilder(sb);
     }
 
     protected void outerHtml(Appendable accum) {
+        outerHtml(QuietAppendable.wrap(accum));
+    }
+
+    protected void outerHtml(QuietAppendable accum) {
         Printer printer = Printer.printerFor(this, accum);
-        NodeTraversor.traverse(printer, this);
+        printer.traverse(this);
     }
 
     /**
@@ -774,17 +778,17 @@ public abstract class Node implements Cloneable {
 
      @param accum accumulator to place HTML into
      @param out
-     @throws IOException if appending to the given accumulator fails.
      */
-    abstract void outerHtmlHead(final Appendable accum, final Document.OutputSettings out) throws IOException;
+    abstract void outerHtmlHead(final QuietAppendable accum, final Document.OutputSettings out);
 
-    abstract void outerHtmlTail(final Appendable accum, final Document.OutputSettings out) throws IOException;
+    abstract void outerHtmlTail(final QuietAppendable accum, final Document.OutputSettings out);
 
     /**
-     * Write this node and its children to the given {@link Appendable}.
-     *
-     * @param appendable the {@link Appendable} to write to.
-     * @return the supplied {@link Appendable}, for chaining.
+     Write this node and its children to the given {@link Appendable}.
+
+     @param appendable the {@link Appendable} to write to.
+     @return the supplied {@link Appendable}, for chaining.
+     @throws org.jsoup.SerializationException if the appendable throws an IOException.
      */
     public <T extends Appendable> T html(T appendable) {
         outerHtml(appendable);
@@ -806,25 +810,17 @@ public abstract class Node implements Cloneable {
         return Range.of(this, true);
     }
 
-    /** Test if this node is the first child, or first following blank text. */
-    final boolean isEffectivelyFirst() {
-        if (siblingIndex == 0) return true;
-        if (siblingIndex == 1) {
-            final Node prev = previousSibling();
-            return prev instanceof TextNode && (((TextNode) prev).isBlank());
-        }
-        return false;
-    }
-
     /**
      * Gets this node's outer HTML.
      * @return outer HTML.
      * @see #outerHtml()
      */
-	public String toString() {
+    @Override
+    public String toString() {
         return outerHtml();
     }
 
+    /** @deprecated internal method moved into Printer; will be removed. */ // todo @Deprecate
     protected void indent(Appendable accum, int depth, Document.OutputSettings out) throws IOException {
         accum.append('\n').append(StringUtil.padding(depth * out.indentAmount(), out.maxPaddingWidth()));
     }

@@ -10,7 +10,6 @@ import org.jsoup.nodes.Node;
 import org.jsoup.nodes.TextNode;
 import org.jsoup.parser.ParseErrorList;
 import org.jsoup.parser.Parser;
-import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 
 import java.util.List;
@@ -156,9 +155,9 @@ public class Cleaner {
                 TextNode destText = new TextNode(sourceText.getWholeText());
                 destination.appendChild(destText);
             } else if (source instanceof DataNode && safelist.isSafeTag(source.parent().normalName())) {
-              DataNode sourceData = (DataNode) source;
-              DataNode destData = new DataNode(sourceData.getWholeData());
-              destination.appendChild(destData);
+                DataNode sourceData = (DataNode) source;
+                DataNode destData = new DataNode(sourceData.getWholeData());
+                destination.appendChild(destData);
             } else { // else, we don't care about comments, xml proc instructions, etc
                 numDiscarded++;
             }
@@ -173,7 +172,7 @@ public class Cleaner {
 
     private int copySafeNodes(Element source, Element dest) {
         CleaningVisitor cleaningVisitor = new CleaningVisitor(source, dest);
-        NodeTraversor.traverse(cleaningVisitor, source);
+        cleaningVisitor.traverse(source);
         return cleaningVisitor.numDiscarded;
     }
 

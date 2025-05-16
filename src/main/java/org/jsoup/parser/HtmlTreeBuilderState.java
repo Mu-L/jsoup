@@ -9,6 +9,7 @@ import org.jsoup.nodes.DocumentType;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Node;
 import org.jsoup.nodes.Range;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 
@@ -130,11 +131,10 @@ enum HtmlTreeBuilderState {
                             tb.maybeSetBaseUri(el);
                     } else if (name.equals("meta")) {
                         tb.insertEmptyElementFor(start);
-                        // todo: charset switches
                     } else if (name.equals("title")) {
-                        HandleTextState(start, tb, TokeniserState.Rcdata);
+                        HandleTextState(start, tb, tb.tagFor(start).textState());
                     } else if (inSorted(name, InHeadRaw)) {
-                        HandleTextState(start, tb, TokeniserState.Rawtext);
+                        HandleTextState(start, tb, tb.tagFor(start).textState());
                     } else if (name.equals("noscript")) {
                         // else if noscript && scripting flag = true: rawtext (jsoup doesn't run script, to handle as noscript)
                         tb.insertElementFor(start);
@@ -287,7 +287,6 @@ enum HtmlTreeBuilderState {
                 case Character: {
                     Token.Character c = t.asCharacter();
                     if (c.getData().equals(nullString)) {
-                        // todo confirm that check
                         tb.error(this);
                         return false;
                     } else if (tb.framesetOk() && isWhitespace(c)) { // don't check if whitespace if frames already closed
@@ -480,7 +479,7 @@ enum HtmlTreeBuilderState {
                     break;
                 case "textarea":
                     tb.framesetOk(false);
-                    HandleTextState(startTag, tb, TokeniserState.Rcdata);
+                    HandleTextState(startTag, tb, tb.tagFor(startTag).textState());
                     break;
                 case "xmp":
                     if (tb.inButtonScope("p")) {
@@ -488,15 +487,15 @@ enum HtmlTreeBuilderState {
                     }
                     tb.reconstructFormattingElements();
                     tb.framesetOk(false);
-                    HandleTextState(startTag, tb, TokeniserState.Rawtext);
+                    HandleTextState(startTag, tb, tb.tagFor(startTag).textState());
                     break;
                 case "iframe":
                     tb.framesetOk(false);
-                    HandleTextState(startTag, tb, TokeniserState.Rawtext);
+                    HandleTextState(startTag, tb, tb.tagFor(startTag).textState());
                     break;
                 case "noembed":
                     // also handle noscript if script enabled
-                    HandleTextState(startTag, tb, TokeniserState.Rawtext);
+                    HandleTextState(startTag, tb, tb.tagFor(startTag).textState());
                     break;
                 case "select":
                     tb.reconstructFormattingElements();
@@ -1807,9 +1806,22 @@ enum HtmlTreeBuilderState {
 
                     // Any other start:
                     // (whatwg says to fix up tag name and attribute case per a table - we will preserve original case instead)
-                    tb.insertForeignElementFor(start, tb.currentElement().tag().namespace());
+                    String namespace = tb.currentElement().tag().namespace();
+                    tb.insertForeignElementFor(start, namespace);
                     // (self-closing handled in insert)
                     // if self-closing svg script -- level and execution elided
+
+                    // seemingly not in spec, but as browser behavior, get into ScriptData state for svg script; and allow custom data tags
+                    TokeniserState textState = tb.tagFor(start.tagName.value(), start.normalName, namespace, tb.settings).textState();
+                    if (textState != null) {
+                        if (start.normalName.equals("script"))
+                            tb.tokeniser.transition(TokeniserState.ScriptData);
+                        else
+                            tb.tokeniser.transition(textState);
+                        tb.markInsertionMode();
+                        tb.transition(Text);
+                    }
+
                     break;
 
                 case EndTag:
@@ -1883,8 +1895,9 @@ enum HtmlTreeBuilderState {
         return false;
     }
 
-    private static void HandleTextState(Token.StartTag startTag, HtmlTreeBuilder tb, TokeniserState state) {
-        tb.tokeniser.transition(state);
+    private static void HandleTextState(Token.StartTag startTag, HtmlTreeBuilder tb, @Nullable TokeniserState state) {
+        if (state != null)
+            tb.tokeniser.transition(state);
         tb.markInsertionMode();
         tb.transition(Text);
         tb.insertElementFor(startTag);

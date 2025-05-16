@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import static org.jsoup.nodes.NodeIteratorTest.assertIterates;
 import static org.jsoup.nodes.NodeIteratorTest.trackSeen;
 import static org.jsoup.parser.Parser.NamespaceHtml;
+import static org.jsoup.select.SelectorTest.assertSelectedIds;
 import static org.jsoup.select.SelectorTest.assertSelectedOwnText;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -3165,5 +3166,30 @@ public class ElementTest {
         els.deselectAll();
         assertEquals(0, els.size());
         assertEquals(3, parent.childrenSize());
+    }
+
+    @Test void selectDescendents() {
+        String html = "<div id=out><div id=1><div id=2></div></div><div id=3></div>";
+        Document doc = Jsoup.parse(html);
+        Element div = doc.expectFirst("#out");
+
+        Elements childs = div.select("> div");
+        assertSelectedIds(childs, "1", "3");
+
+        Elements descendents = div.select("* div");
+        assertSelectedIds(descendents, "1", "2", "3");
+
+        Elements all = div.select("div");
+        assertSelectedIds(all, "out", "1", "2", "3");
+    }
+
+    @Test void setTextOnSvgScriptSetsDataNode() {
+        // calling .text() on svg script will create a datanode, as defined in TagSet
+        String html = "<svg><script></script></svg>";
+        Document doc = Jsoup.parse(html);
+        Element script = doc.expectFirst("script");
+        script.text("a < b");
+        assertEquals("<script>a < b</script>", script.outerHtml()); // not encoded
+        assertEquals("a < b", script.data());
     }
 }
