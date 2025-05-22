@@ -16,6 +16,8 @@ import java.util.Locale;
 
 /**
  CharacterReader consumes tokens off a string. Used internally by jsoup. API subject to changes.
+ <p>If the underlying reader throws an IOException during any operation, the CharacterReader will throw an
+ {@link UncheckedIOException}. That won't happen with String / StringReader inputs.</p>
  */
 public final class CharacterReader implements AutoCloseable {
     static final char EOF = (char) -1;
@@ -58,6 +60,7 @@ public final class CharacterReader implements AutoCloseable {
         this(new StringReader(input));
     }
 
+    @Override
     public void close() {
         if (reader == null)
             return;
@@ -80,6 +83,10 @@ public final class CharacterReader implements AutoCloseable {
         doBufferUp(); // structured so bufferUp may become an intrinsic candidate
     }
 
+    /**
+     Reads into the buffer. Will throw an UncheckedIOException if the underling reader throws an IOException.
+     @throws UncheckedIOException if the underlying reader throws an IOException
+     */
     private void doBufferUp() {
         /*
         The flow:

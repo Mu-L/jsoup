@@ -23,7 +23,7 @@ import static org.jsoup.internal.StringUtil.normaliseWhitespace;
 
 /**
  An Evaluator tests if an element meets the selector's requirements. Obtain an evaluator for a given CSS selector
- with {@link QueryParser#parse}. If you are executing the same selector on many elements (or documents), it
+ with {@link Selector#evaluatorOf(String css)}. If you are executing the same selector on many elements (or documents), it
  can be more efficient to compile and reuse an Evaluator than to reparse the selector on each invocation of select().
  <p>Evaluators are thread-safe and may be used concurrently across multiple documents.</p>
  */
@@ -603,9 +603,8 @@ public abstract class Evaluator {
 
         @Override
         protected int calculatePosition(Element root, Element element) {
-    	    if (element.parent() == null)
-    	        return 0;
-        	return element.parent().childrenSize()- element.elementSiblingIndex();
+    	    if (element.parent() == null) return 0;
+        	return element.parent().childrenSize() - element.elementSiblingIndex();
         }
 
 		@Override

@@ -323,7 +323,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
             new Element(tag, null, attributes);
     }
 
-    /** Inserts an HTML element for the given tag) */
+    /** Inserts an HTML element for the given tag */
     Element insertElementFor(final Token.StartTag startTag) {
         Element el = createElementFor(startTag, NamespaceHtml, false);
         doInsertElement(el);
@@ -711,8 +711,6 @@ public class HtmlTreeBuilder extends TreeBuilder {
 
     boolean inScope(String targetName, String[] extras) {
         return inSpecificScope(targetName, TagsSearchInScope, extras);
-        // todo: in mathml namespace: mi, mo, mn, ms, mtext annotation-xml
-        // todo: in svg namespace: forignOjbect, desc, title
     }
 
     boolean inListItemScope(String targetName) {

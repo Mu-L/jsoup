@@ -10,7 +10,6 @@ import org.jsoup.helper.DataUtil;
 import org.jsoup.helper.W3CDom;
 import org.jsoup.integration.servlets.*;
 import org.jsoup.internal.SharedConstants;
-import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.nodes.FormElement;
@@ -22,7 +21,6 @@ import org.jsoup.parser.StreamParser;
 import org.jsoup.parser.XmlTreeBuilder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -393,6 +391,17 @@ public class ConnectTest {
         <tr><th>Part firstPart Filename</th><td>thumb.jpg</td></tr>
         <tr><th>Part firstPart Size</th><td>1052</td></tr>
          */
+    }
+
+    @Test
+    public void multipleParsesOkAfterReadFully() throws IOException {
+        Connection.Response res = Jsoup.connect(echoUrl).execute().readFully();
+
+        Document doc = res.parse();
+        assertTrue(doc.title().contains("Environment"));
+
+        Document doc2 = res.parse();
+        assertTrue(doc2.title().contains("Environment"));
     }
 
     @Test
@@ -844,6 +853,12 @@ public class ConnectTest {
         assertEquals(200 * 1024, mediumRes.body().length());
         assertEquals(actualDocText, largeRes.body().length());
         assertEquals(actualDocText, unlimitedRes.body().length());
+
+        assertEquals(actualDocText, defaultRes.readBody().length());
+        assertEquals(50 * 1024, smallRes.readBody().length());
+        assertEquals(200 * 1024, mediumRes.readBody().length());
+        assertEquals(actualDocText, largeRes.readBody().length());
+        assertEquals(actualDocText, unlimitedRes.readBody().length());
     }
 
     @Test void formLoginFlow() throws IOException {

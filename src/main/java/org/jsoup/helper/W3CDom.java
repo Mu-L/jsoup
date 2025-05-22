@@ -3,10 +3,7 @@ package org.jsoup.helper;
 import org.jsoup.internal.Normalizer;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Attribute;
-import org.jsoup.nodes.Attributes;
 import org.jsoup.parser.HtmlTreeBuilder;
-import org.jsoup.parser.XmlTreeBuilder;
-import org.jsoup.select.NodeTraversor;
 import org.jsoup.select.NodeVisitor;
 import org.jsoup.select.Selector;
 import org.w3c.dom.Comment;
@@ -135,7 +132,7 @@ public class W3CDom {
                     transformer.setOutputProperty(OutputKeys.DOCTYPE_PUBLIC, doctype.getPublicId());
                 if (!StringUtil.isBlank(doctype.getSystemId()))
                     transformer.setOutputProperty(OutputKeys.DOCTYPE_SYSTEM, doctype.getSystemId());
-                    // handle <!doctype html> for legacy dom. TODO: nicer if <!doctype html>
+                    // handle <!doctype html> for legacy dom.
                 else if (doctype.getName().equalsIgnoreCase("html")
                     && StringUtil.isBlank(doctype.getPublicId())
                     && StringUtil.isBlank(doctype.getSystemId()))
@@ -256,7 +253,8 @@ public class W3CDom {
             builder.syntax = inDoc.outputSettings().syntax();
         }
         org.jsoup.nodes.Element rootEl = in instanceof org.jsoup.nodes.Document ? in.firstElementChild() : in; // skip the #root node if a Document
-        NodeTraversor.traverse(builder, rootEl);
+        assert rootEl != null;
+        builder.traverse(rootEl);
     }
 
     /**

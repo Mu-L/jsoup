@@ -8,6 +8,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.nodes.Entities;
 import org.jsoup.nodes.Range;
 import org.jsoup.parser.Parser;
+import org.jsoup.parser.Tag;
+import org.jsoup.parser.TagSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -472,4 +474,39 @@ public class CleanerTest {
         assertEquals("<a href=\"http://external.com/\" rel=\"nofollow\">One</a> <a href=\"/relative/\">Two</a> <a href=\"../other/\">Three</a> <a href=\"http://example.com/bar\" rel=\"nofollow\">Four</a>", clean4);
     }
 
+    @Test void discardsSvgScriptData() {
+        // https://github.com/jhy/jsoup/issues/2320
+        Safelist svgOk = Safelist.none().addTags("svg");
+        String cleaned = Jsoup.clean("<svg><script> a < b </script></svg>", svgOk);
+        assertEquals("<svg></svg>", cleaned);
+    }
+
+    @Test void canSupplyConfiguredTagset() {
+        // https://github.com/jhy/jsoup/issues/2326
+
+        // by default, iframe is data
+        String input = "<iframe>content is <data></iframe>";
+        Safelist safelist = Safelist.relaxed().addTags("iframe");
+        String clean = Jsoup.clean(input, safelist);
+        assertEquals("<iframe>content is <data></iframe>", clean);
+
+        Document doc = Jsoup.parse(input);
+        assertEquals("", doc.text()); // data is not text
+
+        // can change to text
+        TagSet tags = TagSet.Html();
+        Tag iframe = tags.valueOf("iframe", Parser.NamespaceHtml);
+        iframe.clear(Tag.Data).set(Tag.RcData);
+        Document doc2 = Jsoup.parse(input, Parser.htmlParser().tagSet(tags));
+        assertEquals("content is <data>", doc2.text());
+        assertEquals("<iframe>content is &lt;data&gt;</iframe>", doc2.body().html());
+
+        // text nodes are escaped
+        assertEquals("<iframe>content is &lt;data&gt;</iframe>", doc2.body().html());
+
+        // can use cleaner with updated tagset
+        Cleaner cleaner = new Cleaner(Safelist.relaxed());
+        String clean2 = cleaner.clean(doc2).body().html();
+        assertEquals("content is &lt;data&gt;", clean2);
+    }
 }
