@@ -2,16 +2,14 @@ package org.jsoup.parser;
 
 
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.DataNode;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jspecify.annotations.NullMarked;
 import org.junit.jupiter.api.Test;
-import java.io.Reader;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.util.List;
 
+import static org.jsoup.internal.StringUtil.inSorted;
 import static org.jsoup.parser.Parser.NamespaceHtml;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,6 +19,12 @@ public class HtmlTreeBuilderTest {
         List<Object[]> constants = HtmlTreeBuilderStateTest.findConstantArrays(HtmlTreeBuilder.class);
         HtmlTreeBuilderStateTest.ensureSorted(constants);
         assertEquals(14, constants.size());
+    }
+
+    @Test
+    public void scopeSearchesMatchSpecBoundaries() {
+        assertTrue(inSorted("select", HtmlTreeBuilder.TagsSearchInScope));
+        assertTrue(inSorted("template", HtmlTreeBuilder.TagSearchTableScope));
     }
 
     @Test
@@ -60,6 +64,9 @@ public class HtmlTreeBuilderTest {
 
         Element svgEl = new Element(Tag.valueOf("title", Parser.NamespaceSvg, settings), "");
         assertTrue(HtmlTreeBuilder.isSpecial(svgEl));
+
+        Element svgForeignObject = Jsoup.parse("<svg><foreignObject></foreignObject></svg>").expectFirst("foreignObject");
+        assertTrue(HtmlTreeBuilder.isSpecial(svgForeignObject));
 
         Element notSvgEl = new Element(Tag.valueOf("not-svg", Parser.NamespaceSvg, settings), "");
         assertFalse(HtmlTreeBuilder.isSpecial(notSvgEl));

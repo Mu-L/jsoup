@@ -29,7 +29,7 @@ import static org.jsoup.parser.Parser.*;
 public class HtmlTreeBuilder extends TreeBuilder {
     // tag searches. must be sorted, used in inSorted. HtmlTreeBuilderTest validates they're sorted.
     static final String[] TagsSearchInScope = new String[]{ // a particular element in scope
-        "applet", "caption", "html", "marquee", "object", "table", "td", "template", "th"
+        "applet", "caption", "html", "marquee", "object", "select", "table", "td", "template", "th"
     };
     // math and svg namespaces for particular element in scope
     static final String[]TagSearchInScopeMath = new String[] {
@@ -41,7 +41,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
 
     static final String[] TagSearchList = new String[]{"ol", "ul"};
     static final String[] TagSearchButton = new String[]{"button"};
-    static final String[] TagSearchTableScope = new String[]{"html", "table"};
+    static final String[] TagSearchTableScope = new String[]{"html", "table", "template"};
     static final String[] TagSearchSelectScope = new String[]{"optgroup", "option"};
     static final String[] TagSearchEndTags = new String[]{"dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc"};
     static final String[] TagThoroughSearchEndTags = new String[]{"caption", "colgroup", "dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc", "tbody", "td", "tfoot", "th", "thead", "tr"};
@@ -876,7 +876,8 @@ public class HtmlTreeBuilder extends TreeBuilder {
             case Parser.NamespaceMathml:
                 return inSorted(name, TagSearchSpecialMath);
             case Parser.NamespaceSvg:
-                return inSorted(name, TagSvgHtmlIntegration);
+                // SVG tag names may be case-adjusted, e.g. foreignObject, so match the preserved tagName()
+                return StringUtil.in(el.tagName(), TagSvgHtmlIntegration);
             default:
                 return false;
         }
