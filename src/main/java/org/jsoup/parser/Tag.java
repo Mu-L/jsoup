@@ -41,6 +41,7 @@ public class Tag implements Cloneable {
     String tagName;
     String normalName; // always the lower case version of this tag, regardless of case preservation mode
     int options = 0;
+    private int parserOptions = 0; // internal tree-builder options; see HtmlTagOptions
 
     /**
      Create a new Tag, with the given name and namespace.
@@ -70,6 +71,7 @@ public class Tag implements Cloneable {
         this.tagName = tagName;
         this.normalName = normalName;
         this.namespace = namespace;
+        setParserOptions();
     }
 
     /**
@@ -98,6 +100,7 @@ public class Tag implements Cloneable {
     public Tag name(String tagName) {
         this.tagName = tagName;
         this.normalName = ParseSettings.normalName(tagName);
+        setParserOptions();
         return this;
     }
 
@@ -149,6 +152,7 @@ public class Tag implements Cloneable {
      */
     public Tag namespace(String namespace) {
         this.namespace = namespace;
+        setParserOptions();
         return this;
     }
 
@@ -187,6 +191,20 @@ public class Tag implements Cloneable {
         // considered known if touched, unless explicitly clearing known
         if (option != Tag.Known) options |= Tag.Known;
         return this;
+    }
+
+    /**
+     Set the cached parser options from the current name and namespace.
+     */
+    void setParserOptions() {
+        parserOptions = HtmlTagOptions.optionsFor(normalName, namespace);
+    }
+
+    /**
+     Test if this tag has the given parser option.
+     */
+    boolean hasParserOption(int option) {
+        return (parserOptions & option) != 0;
     }
 
     /**

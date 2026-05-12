@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.jsoup.internal.StringUtil.inSorted;
+import static org.jsoup.parser.HtmlTreeBuilderState.Constants.Headings;
 import static org.jsoup.parser.HtmlTreeBuilderState.Constants.InTableFoster;
 import static org.jsoup.parser.HtmlTreeBuilderState.ForeignContent;
 import static org.jsoup.parser.Parser.*;
@@ -27,33 +28,6 @@ import static org.jsoup.parser.Parser.*;
  * HTML Tree Builder; creates a DOM from Tokens.
  */
 public class HtmlTreeBuilder extends TreeBuilder {
-    // tag searches. must be sorted, used in inSorted. HtmlTreeBuilderTest validates they're sorted.
-    static final String[] TagsSearchInScope = new String[]{ // a particular element in scope
-        "applet", "caption", "html", "marquee", "object", "select", "table", "td", "template", "th"
-    };
-    // math and svg namespaces for particular element in scope
-    static final String[]TagSearchInScopeMath = new String[] {
-        "annotation-xml",  "mi", "mn", "mo", "ms", "mtext"
-    };
-    static final String[]TagSearchInScopeSvg = new String[] {
-        "desc", "foreignobject", "title" // note normalized to lowercase to match other scope searches; will preserve input case as appropriate
-    };
-
-    static final String[] TagSearchList = new String[]{"ol", "ul"};
-    static final String[] TagSearchButton = new String[]{"button"};
-    static final String[] TagSearchTableScope = new String[]{"html", "table", "template"};
-    static final String[] TagSearchSelectScope = new String[]{"optgroup", "option"};
-    static final String[] TagSearchEndTags = new String[]{"dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc"};
-    static final String[] TagThoroughSearchEndTags = new String[]{"caption", "colgroup", "dd", "dt", "li", "optgroup", "option", "p", "rb", "rp", "rt", "rtc", "tbody", "td", "tfoot", "th", "thead", "tr"};
-    static final String[] TagSearchSpecial = new String[]{
-        "address", "applet", "area", "article", "aside", "base", "basefont", "bgsound", "blockquote", "body", "br",
-        "button", "caption", "center", "col", "colgroup", "dd", "details", "dir", "div", "dl", "dt", "embed",
-        "fieldset", "figcaption", "figure", "footer", "form", "frame", "frameset", "h1", "h2", "h3", "h4", "h5", "h6",
-        "head", "header", "hgroup", "hr", "html", "iframe", "img", "input", "keygen", "li", "link", "listing", "main",
-        "marquee", "menu", "meta", "nav", "noembed", "noframes", "noscript", "object", "ol", "p", "param", "plaintext",
-        "pre", "script", "search", "section", "select", "source", "style", "summary", "table", "tbody", "td",
-        "template", "textarea", "tfoot", "th", "thead", "title", "tr", "track", "ul", "wbr", "xmp"};
-    static String[] TagSearchSpecialMath = {"annotation-xml", "mi", "mn", "mo", "ms", "mtext"}; // differs to MathML text integration point; adds annotation-xml
     static final String[] TagMathMlTextIntegration = new String[]{"mi", "mn", "mo", "ms", "mtext"};
     static final String[] TagSvgHtmlIntegration = new String[]{"desc", "foreignObject", "title"};
     static final String[] TagFormListed = {
@@ -707,63 +681,51 @@ public class HtmlTreeBuilder extends TreeBuilder {
         transition(HtmlTreeBuilderState.InBody);
     }
 
-    // todo: tidy up in specific scope methods
-    private final String[] specificScopeTarget = {null};
-
-    private boolean inSpecificScope(String targetName, String[] baseTypes, String[] extraTypes) {
-        specificScopeTarget[0] = targetName;
-        return inSpecificScope(specificScopeTarget, baseTypes, extraTypes);
-    }
-
-    private boolean inSpecificScope(String[] targetNames, String[] baseTypes, @Nullable String[] extraTypes) {
+    /**
+     Test if the target element is in the requested scope.
+     */
+    private boolean inSpecificScope(String targetName, int boundaryOptions) {
         // https://html.spec.whatwg.org/multipage/parsing.html#has-an-element-in-the-specific-scope
-        final int bottom = stack.size() -1;
-        // don't walk too far up the tree
-        for (int pos = bottom; pos >= 0; pos--) {
+        for (int pos = stack.size() - 1; pos >= 0; pos--) {
             Element el = stack.get(pos);
-            String elName = el.normalName();
-            // namespace checks - arguments provided are always in html ns, with this bolt-on for math and svg:
-            String ns = el.tag().namespace();
-            if (ns.equals(NamespaceHtml)) {
-                if (inSorted(elName, targetNames))
-                    return true;
-                if (inSorted(elName, baseTypes))
-                    return false;
-                if (extraTypes != null && inSorted(elName, extraTypes))
-                    return false;
-            } else if (baseTypes == TagsSearchInScope) {
-                if (ns.equals(NamespaceMathml) && inSorted(elName, TagSearchInScopeMath))
-                    return false;
-                if (ns.equals(NamespaceSvg) && inSorted(elName, TagSearchInScopeSvg))
-                    return false;
-            }
+            Tag tag = el.tag();
+            if (NamespaceHtml.equals(tag.namespace()) && el.normalName().equals(targetName))
+                return true;
+            if (tag.hasParserOption(boundaryOptions))
+                return false;
         }
-        //Validate.fail("Should not be reachable"); // would end up false because hitting 'html' at root (basetypes)
         return false;
     }
 
-    boolean inScope(String[] targetNames) {
-        return inSpecificScope(targetNames, TagsSearchInScope, null);
+    /**
+     Test if any heading element is in scope.
+     */
+    boolean hasHeadingInScope() {
+        for (int pos = stack.size() - 1; pos >= 0; pos--) {
+            Element el = stack.get(pos);
+            Tag tag = el.tag();
+            if (NamespaceHtml.equals(tag.namespace()) && inSorted(el.normalName(), Headings))
+                return true;
+            if (tag.hasParserOption(HtmlTagOptions.Scope))
+                return false;
+        }
+        return false;
     }
 
     boolean inScope(String targetName) {
-        return inScope(targetName, null);
-    }
-
-    boolean inScope(String targetName, String[] extras) {
-        return inSpecificScope(targetName, TagsSearchInScope, extras);
+        return inSpecificScope(targetName, HtmlTagOptions.Scope);
     }
 
     boolean inListItemScope(String targetName) {
-        return inScope(targetName, TagSearchList);
+        return inSpecificScope(targetName, HtmlTagOptions.Scope | HtmlTagOptions.ListScope);
     }
 
     boolean inButtonScope(String targetName) {
-        return inScope(targetName, TagSearchButton);
+        return inSpecificScope(targetName, HtmlTagOptions.Scope | HtmlTagOptions.ButtonScope);
     }
 
     boolean inTableScope(String targetName) {
-        return inSpecificScope(targetName, TagSearchTableScope, null);
+        return inSpecificScope(targetName, HtmlTagOptions.TableScope);
     }
 
     boolean inSelectScope(String targetName) {
@@ -772,7 +734,8 @@ public class HtmlTreeBuilder extends TreeBuilder {
             String elName = el.normalName();
             if (elName.equals(targetName))
                 return true;
-            if (!inSorted(elName, TagSearchSelectScope)) // all elements except
+            // Select scope stops at the first element that is not option / optgroup.
+            if (!el.tag().hasParserOption(HtmlTagOptions.SelectScopeMember))
                 return false;
         }
         return false; // nothing left on stack
@@ -838,7 +801,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
      process, then the UA must perform the above steps as if that element was not in the above list.
      */
     void generateImpliedEndTags(String excludeTag) {
-        while (inSorted(currentElement().normalName(), TagSearchEndTags)) {
+        while (currentElement().tag().hasParserOption(HtmlTagOptions.ImpliedEnd)) {
             if (excludeTag != null && currentElementIs(excludeTag))
                 break;
             pop();
@@ -854,9 +817,11 @@ public class HtmlTreeBuilder extends TreeBuilder {
      @param thorough if we are thorough (includes table elements etc) or not
      */
     void generateImpliedEndTags(boolean thorough) {
-        final String[] search = thorough ? TagThoroughSearchEndTags : TagSearchEndTags;
-        while (NamespaceHtml.equals(currentElement().tag().namespace())
-            && inSorted(currentElement().normalName(), search)) {
+        final int option = thorough ? HtmlTagOptions.ThoroughImpliedEnd : HtmlTagOptions.ImpliedEnd;
+        while (true) {
+            Tag tag = currentElement().tag();
+            if (!tag.hasParserOption(option))
+                break;
             pop();
         }
     }
@@ -868,19 +833,7 @@ public class HtmlTreeBuilder extends TreeBuilder {
     }
 
     static boolean isSpecial(Element el) {
-        String namespace = el.tag().namespace();
-        String name = el.normalName();
-        switch (namespace) {
-            case NamespaceHtml:
-                return inSorted(name, TagSearchSpecial);
-            case Parser.NamespaceMathml:
-                return inSorted(name, TagSearchSpecialMath);
-            case Parser.NamespaceSvg:
-                // SVG tag names may be case-adjusted, e.g. foreignObject, so match the preserved tagName()
-                return StringUtil.in(el.tagName(), TagSvgHtmlIntegration);
-            default:
-                return false;
-        }
+        return el.tag().hasParserOption(HtmlTagOptions.Special);
     }
 
     Element lastFormattingElement() {

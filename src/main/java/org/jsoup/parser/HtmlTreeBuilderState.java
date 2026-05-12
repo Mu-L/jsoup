@@ -748,7 +748,7 @@ enum HtmlTreeBuilderState {
                 case "h4":
                 case "h5":
                 case "h6":
-                    if (!tb.inScope(Constants.Headings)) {
+                    if (!tb.hasHeadingInScope()) {
                         tb.error(this);
                         return false;
                     } else {
@@ -1297,7 +1297,7 @@ enum HtmlTreeBuilderState {
         }
 
         private boolean exitTableBody(Token t, HtmlTreeBuilder tb) {
-            if (!(tb.inTableScope("tbody") || tb.inTableScope("thead") || tb.inScope("tfoot"))) {
+            if (!(tb.inTableScope("tbody") || tb.inTableScope("thead") || tb.inTableScope("tfoot"))) {
                 // frag case
                 tb.error(this);
                 return false;

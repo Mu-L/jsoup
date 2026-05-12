@@ -90,6 +90,7 @@ public class TagSet {
                 customizer.accept(tag);
             }
         }
+        tag.setParserOptions();
 
         tags.computeIfAbsent(tag.namespace, ns -> new HashMap<>())
             .put(tag.tagName, tag);

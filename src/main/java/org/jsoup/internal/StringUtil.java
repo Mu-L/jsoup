@@ -263,6 +263,13 @@ public final class StringUtil {
     }
 
     public static boolean inSorted(String needle, String[] haystack) {
+        if (haystack.length <= 8) { // Parser benchmarking showed that it's faster to scan than binary search for these lengths
+            for (int i = 0; i < haystack.length; i++) {
+                if (needle.equals(haystack[i]))
+                    return true;
+            }
+            return false;
+        }
         return Arrays.binarySearch(haystack, needle) >= 0;
     }
 
