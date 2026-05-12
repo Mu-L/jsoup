@@ -147,6 +147,53 @@ public class W3CDomTest {
     }
 
     @Test
+    public void plainXmlElementsDoNotUseReservedXmlNamespace() {
+        String input = "<root xml:lang=\"en\"><child>One</child></root>";
+        org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(input, "", Parser.xmlParser());
+
+        Document w3Doc = new W3CDom().fromJsoup(jsoupDoc);
+        org.w3c.dom.Element root = w3Doc.getDocumentElement();
+        org.w3c.dom.Element child = (org.w3c.dom.Element) root.getFirstChild();
+
+        assertNull(root.getNamespaceURI());
+        assertNull(child.getNamespaceURI());
+        assertEquals("en", root.getAttributeNS(Parser.NamespaceXml, "lang"));
+
+        String xml = W3CDom.asString(w3Doc, W3CDom.OutputXml());
+        assertFalse(xml.contains("xmlns=\"" + Parser.NamespaceXml + "\""), xml);
+
+        Document roundTrip = parseXml(xml, true);
+        org.w3c.dom.Element roundRoot = roundTrip.getDocumentElement();
+        assertNull(roundRoot.getNamespaceURI());
+        assertEquals("en", roundRoot.getAttributeNS(Parser.NamespaceXml, "lang"));
+    }
+
+    @Test
+    public void explicitXmlNamespacesRoundTripThroughW3cDom() {
+        String input = "<root xmlns=\"urn:example\"><child>One</child><plain xmlns=\"\">Two</plain></root>";
+        org.jsoup.nodes.Document jsoupDoc = Jsoup.parse(input, "", Parser.xmlParser());
+
+        Document w3Doc = new W3CDom().fromJsoup(jsoupDoc);
+        org.w3c.dom.Element root = w3Doc.getDocumentElement();
+        org.w3c.dom.Element child = (org.w3c.dom.Element) root.getFirstChild();
+        org.w3c.dom.Element plain = (org.w3c.dom.Element) child.getNextSibling();
+
+        assertEquals("urn:example", root.getNamespaceURI());
+        assertEquals("urn:example", child.getNamespaceURI());
+        assertNull(plain.getNamespaceURI());
+
+        String xml = W3CDom.asString(w3Doc, W3CDom.OutputXml());
+        Document roundTrip = parseXml(xml, true);
+        org.w3c.dom.Element roundRoot = roundTrip.getDocumentElement();
+        NodeList plainEls = roundRoot.getElementsByTagName("plain");
+
+        assertEquals("urn:example", roundRoot.getNamespaceURI(), xml);
+        assertEquals(1, roundRoot.getElementsByTagNameNS("urn:example", "child").getLength(), xml);
+        assertEquals(1, plainEls.getLength(), xml);
+        assertNull(plainEls.item(0).getNamespaceURI(), xml);
+    }
+
+    @Test
     public void handlesInvalidAttributeNames() {
         String html = "<html><head></head><body style=\"color: red\" \" name\"></body></html>";
         org.jsoup.nodes.Document jsoupDoc;

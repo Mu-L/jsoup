@@ -4,6 +4,7 @@ import org.jsoup.internal.Normalizer;
 import org.jsoup.internal.StringUtil;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.parser.HtmlTreeBuilder;
+import org.jsoup.parser.Parser;
 import org.jsoup.select.NodeVisitor;
 import org.jsoup.select.Selector;
 import org.w3c.dom.Comment;
@@ -358,7 +359,7 @@ public class W3CDom {
         public void head(org.jsoup.nodes.Node source, int depth) {
             if (source instanceof org.jsoup.nodes.Element) {
                 org.jsoup.nodes.Element sourceEl = (org.jsoup.nodes.Element) source;
-                String namespace = namespaceAware ? sourceEl.tag().namespace() : null;
+                @Nullable String namespace = namespaceAware ? w3cNamespace(sourceEl) : null;
                 String tagName = Normalizer.xmlSafeTagName(sourceEl.tagName());
                 try {
                     // use an empty namespace if none is present but the tag name has a prefix
@@ -388,6 +389,14 @@ public class W3CDom {
             } else {
                 // unhandled. note that doctype is not handled here - rather it is used in the initial doc creation
             }
+        }
+
+        private static @Nullable String w3cNamespace(org.jsoup.nodes.Element sourceEl) {
+            // In W3C DOM, plain XML elements have no namespace; XML namespace is reserved for the {@code xml} prefix
+            String namespace = sourceEl.tag().namespace();
+            if (Parser.NamespaceXml.equals(namespace) && sourceEl.tag().prefix().isEmpty())
+                return null;
+            return namespace;
         }
 
         private void append(Node append, org.jsoup.nodes.Node source) {
