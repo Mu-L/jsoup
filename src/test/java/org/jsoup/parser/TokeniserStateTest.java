@@ -89,6 +89,18 @@ public class TokeniserStateTest {
         els = doc.select("textarea");
         assertEquals("<fake>", els.text());
 
+        body = "<textarea><fake></TeXtArEa>";
+        doc = Jsoup.parse(body);
+        els = doc.select("textarea");
+        assertEquals("<fake>", els.text());
+        assertEquals(0, doc.select("fake").size());
+
+        body = "<title><p>One</TiTlE>";
+        doc = Jsoup.parse(body);
+        els = doc.select("title");
+        assertEquals("<p>One", els.text());
+        assertEquals(0, doc.select("body p").size());
+
         body = "<textarea><open";
         doc = Jsoup.parse(body);
         els = doc.select("textarea");

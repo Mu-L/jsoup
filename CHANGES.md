@@ -8,6 +8,9 @@
 * Aligned HTML parser scope classification with the current HTML spec for `select`, `foreignObject`, and `template`. [#2501](https://github.com/jhy/jsoup/issues/2501)
 * Simplified the HTML tree builder's scope, implied-end-tag, and special-element checks by caching parser-only options on Tag. That improves HTML parser throughput by about 10% on small inputs and up to about 30% on larger inputs in the benchmark fixtures. [#2502](https://github.com/jhy/jsoup/issues/2502)
 
+### Bug Fixes
+* Fixed HTML parsing of mixed-case RCDATA end tags after tag-shaped text. For example, `<title><p>Foo</TiTLE>` and `<textarea><img src=x></TeXtArEa>` now keep the tag-shaped content as text instead of promoting it to markup. [#2503](https://github.com/jhy/jsoup/issues/2503)
+
 ### Build Changes
 * Cleaned up the Maven build for the multi-release JAR so Java 8 and Java 11+ sources compile as separate source sets. This avoids spurious Java 8 compiler warnings from newer-language overlay sources, keeps long-running parser checks behind an explicit profile, and preserves the same published artifacts and runtime behavior.
 

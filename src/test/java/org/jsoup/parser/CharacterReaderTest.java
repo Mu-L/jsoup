@@ -228,10 +228,16 @@ public class CharacterReaderTest {
 
     @Test public void containsIgnoreCase() {
         CharacterReader r = new CharacterReader("One TWO three");
+        assertTrue(r.containsIgnoreCase("one"));
         assertTrue(r.containsIgnoreCase("two"));
+        assertTrue(r.containsIgnoreCase("TwO"));
         assertTrue(r.containsIgnoreCase("three"));
-        // weird one: does not find one, because it scans for consistent case only
-        assertFalse(r.containsIgnoreCase("one"));
+        assertFalse(r.containsIgnoreCase("four"));
+    }
+
+    @Test public void containsIgnoreCaseFindsMixedCase() {
+        CharacterReader r = new CharacterReader("<p>text</TiTlE>");
+        assertTrue(r.containsIgnoreCase("</title>"));
     }
 
     @Test void containsIgnoreCaseBuffer() {

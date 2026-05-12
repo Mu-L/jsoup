@@ -11,7 +11,6 @@ import java.io.UncheckedIOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
-import java.util.Locale;
 
 /**
  CharacterReader consumes tokens off a string. Used internally by jsoup. API subject to changes.
@@ -510,15 +509,22 @@ public final class CharacterReader implements AutoCloseable {
         return true;
     }
 
+    /**
+     Checks if the current buffer position matches the sequence case-insensitively.
+     */
     boolean matchesIgnoreCase(String seq) {
         bufferUp();
         int scanLength = seq.length();
         if (scanLength > bufLength - bufPos)
             return false;
 
-        for (int offset = 0; offset < scanLength; offset++) {
+        return rangeMatchesIgnoreCase(seq, bufPos);
+    }
+
+    private boolean rangeMatchesIgnoreCase(String seq, int start) {
+        for (int offset = 0; offset < seq.length(); offset++) {
             char scan = seq.charAt(offset);
-            char target = charBuf[bufPos + offset];
+            char target = charBuf[start + offset];
             if (scan == target) continue;
 
             scan = Character.toUpperCase(scan);
@@ -590,25 +596,26 @@ public final class CharacterReader implements AutoCloseable {
     @Nullable private String lastIcSeq; // scan cache
     private int lastIcIndex; // nearest found indexOf
 
-    /** Used to check presence of </title>, </style> when we're in RCData and see a <xxx. Only finds consistent case. */
+    /** Used to check presence of </title>, </style> when we're in RCData and see a <xxx. */
     boolean containsIgnoreCase(String seq) {
+        bufferUp();
         if (seq.equals(lastIcSeq)) {
             if (lastIcIndex == -1) return false;
             if (lastIcIndex >= bufPos) return true;
         }
         lastIcSeq = seq;
 
-        String loScan = seq.toLowerCase(Locale.ENGLISH);
-        int lo = nextIndexOf(loScan);
-        if (lo > -1) {
-            lastIcIndex = bufPos + lo; return true;
+        int scanLength = seq.length();
+        int maxStart = bufLength - scanLength;
+        for (int scan = bufPos; scan <= maxStart; scan++) {
+            if (rangeMatchesIgnoreCase(seq, scan)) {
+                lastIcIndex = scan;
+                return true;
+            }
         }
 
-        String hiScan = seq.toUpperCase(Locale.ENGLISH);
-        int hi = nextIndexOf(hiScan);
-        boolean found = hi > -1;
-        lastIcIndex = found ? bufPos + hi : -1; // we don't care about finding the nearest, just that buf contains
-        return found;
+        lastIcIndex = -1;
+        return false;
     }
 
     @Override
