@@ -10,6 +10,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.parser.StreamParser;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -22,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.jsoup.integration.TestServer.origin;
 import static org.jsoup.integration.TestServer.start;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.parallel.ExecutionMode.CONCURRENT;
 
 /**
  Failsafe integration tests for Connect methods. These take a bit longer to run, so included as Integ, not Unit, tests.
@@ -36,6 +38,7 @@ public class ConnectIT {
 
     // Slow Rider tests.
     @Test
+    @Execution(CONCURRENT)
     public void canInterruptBodyStringRead() throws InterruptedException {
         final String[] body = new String[1];
         Thread runner = new Thread(() -> {
@@ -61,6 +64,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     public void canInterruptDocumentRead() throws InterruptedException {
         long start = System.currentTimeMillis();
         final String[] body = new String[1];
@@ -89,6 +93,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     public void canInterruptThenJoinASpawnedThread() throws InterruptedException {
         // https://github.com/jhy/jsoup/issues/1991
         AtomicBoolean ioException = new AtomicBoolean();
@@ -113,6 +118,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     public void totalTimeout() throws IOException {
         int timeout = 3 * 1000;
         long start = System.currentTimeMillis();
@@ -131,6 +137,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     public void slowReadOk() throws IOException {
         // make sure that a slow read that is under the request timeout is still OK
         Document doc = Jsoup.connect(origin().slowRider.url())
@@ -142,6 +149,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     void readFullyThrowsOnTimeout() throws IOException {
         // tests that response.readFully excepts on timeout
         boolean caught = false;
@@ -155,6 +163,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     void readBodyThrowsOnTimeout() throws IOException {
         // tests that response.readBody excepts on timeout
         boolean caught = false;
@@ -168,6 +177,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     void bodyThrowsUncheckedOnTimeout() throws IOException {
         // tests that response.body unchecked excepts on timeout
         boolean caught = false;
@@ -181,6 +191,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     public void infiniteReadSupported() throws IOException {
         Document doc = Jsoup.connect(origin().slowRider.url())
             .timeout(0)
@@ -192,6 +203,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     void streamParserUncheckedExceptionOnTimeoutInStream() throws IOException {
         boolean caught = false;
         try (StreamParser streamParser = Jsoup.connect(origin().slowRider.url())
@@ -218,6 +230,7 @@ public class ConnectIT {
     }
 
     @Test
+    @Execution(CONCURRENT)
     void streamParserCheckedExceptionOnTimeoutInSelect() throws IOException {
         boolean caught = false;
         try (StreamParser streamParser = Jsoup.connect(origin().slowRider.url())
