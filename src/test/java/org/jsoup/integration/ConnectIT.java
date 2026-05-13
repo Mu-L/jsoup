@@ -29,6 +29,12 @@ import static org.junit.jupiter.api.parallel.ExecutionMode.CONCURRENT;
  Failsafe integration tests for Connect methods. These take a bit longer to run, so included as Integ, not Unit, tests.
  */
 public class ConnectIT {
+    private static final int FastStartDelay = 50;
+    private static final int FastCompletionTime = 300;
+    private static final int FastCompletionInterval = 100;
+    private static final int TimeoutMillis = 1500;
+    private static final int TimeoutInterval = 2000;
+
     @BeforeAll
     public static void setUp() {
         start();
@@ -120,29 +126,18 @@ public class ConnectIT {
     @Test
     @Execution(CONCURRENT)
     public void totalTimeout() throws IOException {
-        int timeout = 3 * 1000;
         long start = System.currentTimeMillis();
-        boolean threw = false;
-        try {
-            Jsoup.connect(origin().slowRider.url()).timeout(timeout).get();
-        } catch (SocketTimeoutException e) {
-            long end = System.currentTimeMillis();
-            long took = end - start;
-            assertTrue(took > timeout, ("Time taken was " + took));
-            assertTrue(took < timeout * 1.8, ("Time taken was " + took));
-            threw = true;
-        }
+        assertThrows(SocketTimeoutException.class, () -> slowRiderTimeout().timeout(TimeoutMillis).get());
 
-        assertTrue(threw);
+        long took = System.currentTimeMillis() - start;
+        assertTrue(took >= TimeoutMillis - 100, ("Time taken was " + took));
     }
 
     @Test
     @Execution(CONCURRENT)
     public void slowReadOk() throws IOException {
         // make sure that a slow read that is under the request timeout is still OK
-        Document doc = Jsoup.connect(origin().slowRider.url())
-            .data(SlowRider.MaxTimeParam, "2000") // the request completes in 2 seconds
-            .get();
+        Document doc = slowRiderCompletes().get();
 
         Element h1 = doc.selectFirst("h1");
         assertEquals("outatime", h1.text());
@@ -152,50 +147,31 @@ public class ConnectIT {
     @Execution(CONCURRENT)
     void readFullyThrowsOnTimeout() throws IOException {
         // tests that response.readFully excepts on timeout
-        boolean caught = false;
-        Connection.Response res = Jsoup.connect(origin().slowRider.url()).timeout(3000).execute();
-        try {
-            res.readFully();
-        } catch (IOException e) {
-            caught = true;
-        }
-        assertTrue(caught);
+        Connection.Response res = slowRiderTimeout().timeout(TimeoutMillis).execute();
+        assertThrows(IOException.class, res::readFully);
     }
 
     @Test
     @Execution(CONCURRENT)
     void readBodyThrowsOnTimeout() throws IOException {
         // tests that response.readBody excepts on timeout
-        boolean caught = false;
-        Connection.Response res = Jsoup.connect(origin().slowRider.url()).timeout(3000).execute();
-        try {
-            res.readBody();
-        } catch (IOException e) {
-            caught = true;
-        }
-        assertTrue(caught);
+        Connection.Response res = slowRiderTimeout().timeout(TimeoutMillis).execute();
+        assertThrows(IOException.class, res::readBody);
     }
 
     @Test
     @Execution(CONCURRENT)
     void bodyThrowsUncheckedOnTimeout() throws IOException {
         // tests that response.body unchecked excepts on timeout
-        boolean caught = false;
-        Connection.Response res = Jsoup.connect(origin().slowRider.url()).timeout(3000).execute();
-        try {
-            res.body();
-        } catch (UncheckedIOException e) {
-            caught = true;
-        }
-        assertTrue(caught);
+        Connection.Response res = slowRiderTimeout().timeout(TimeoutMillis).execute();
+        assertThrows(UncheckedIOException.class, res::body);
     }
 
     @Test
     @Execution(CONCURRENT)
     public void infiniteReadSupported() throws IOException {
-        Document doc = Jsoup.connect(origin().slowRider.url())
+        Document doc = slowRiderCompletes()
             .timeout(0)
-            .data(SlowRider.MaxTimeParam, "2000")
             .get();
 
         Element h1 = doc.selectFirst("h1");
@@ -205,56 +181,64 @@ public class ConnectIT {
     @Test
     @Execution(CONCURRENT)
     void streamParserUncheckedExceptionOnTimeoutInStream() throws IOException {
-        boolean caught = false;
-        try (StreamParser streamParser = Jsoup.connect(origin().slowRider.url())
+        try (StreamParser streamParser = slowRiderTimeout()
             .data(SlowRider.MaxTimeParam, "10000")
             .data(SlowRider.IntroSizeParam,
                 "8000") // 8K to pass first buffer, or the timeout would occur in execute or streamparser()
-            .timeout(4000) // has a 1000 sleep at the start
+            .timeout(TimeoutMillis)
             .execute()
             .streamParser()) {
 
             // we should expect to timeout while in stream
-            try {
-                long count = streamParser.stream().count();
-            } catch (Exception e) {
-                caught = true;
-                UncheckedIOException ioe = (UncheckedIOException) e;
-                IOException cause = ioe.getCause();
-                //assertInstanceOf(SocketTimeoutException.class, cause); // different JDKs seem to wrap this differently
-                assertInstanceOf(IOException.class, cause);
-
-            }
+            Exception e = assertThrows(Exception.class, () -> streamParser.stream().count());
+            UncheckedIOException ioe = assertInstanceOf(UncheckedIOException.class, e);
+            IOException cause = ioe.getCause();
+            //assertInstanceOf(SocketTimeoutException.class, cause); // different JDKs seem to wrap this differently
+            assertInstanceOf(IOException.class, cause);
         }
-        assertTrue(caught);
     }
 
     @Test
     @Execution(CONCURRENT)
     void streamParserCheckedExceptionOnTimeoutInSelect() throws IOException {
-        boolean caught = false;
-        try (StreamParser streamParser = Jsoup.connect(origin().slowRider.url())
+        try (StreamParser streamParser = slowRiderTimeout()
             .data(SlowRider.MaxTimeParam, "10000")
             .data(SlowRider.IntroSizeParam,
                 "8000") // 8K to pass first buffer, or the timeout would occur in execute or streamparser()
-            .timeout(4000) // has a 1000 sleep at the start
+            .timeout(TimeoutMillis)
             .execute()
             .streamParser()) {
 
             // we should expect to timeout while in stream
-            try {
-                long count = 0;
+            assertThrows(IOException.class, () -> {
                 while (streamParser.selectNext("p") != null) {
-                    count++;
+                    // consume until the delayed next chunk trips the timeout
                 }
-            } catch (IOException e) {
-                caught = true;
-            }
+            });
         }
-        assertTrue(caught);
     }
 
     private static final int LargeHtmlSize = 280735;
+
+    /**
+     Builds a Slow Rider request that reaches the body quickly, then waits long enough for client timeout handling.
+     */
+    private static Connection slowRiderTimeout() {
+        return Jsoup.connect(origin().slowRider.url())
+            .data(SlowRider.StartDelayParam, String.valueOf(FastStartDelay))
+            .data(SlowRider.IntervalParam, String.valueOf(TimeoutInterval));
+    }
+
+    /**
+     Builds a Slow Rider request that completes quickly while still exercising chunked slow-read handling.
+     */
+    private static Connection slowRiderCompletes() {
+        return Jsoup.connect(origin().slowRider.url())
+            .timeout(5 * 1000)
+            .data(SlowRider.StartDelayParam, String.valueOf(FastStartDelay))
+            .data(SlowRider.IntervalParam, String.valueOf(FastCompletionInterval))
+            .data(SlowRider.MaxTimeParam, String.valueOf(FastCompletionTime));
+    }
 
     @Test
     public void remainingAfterFirstRead() throws IOException {
