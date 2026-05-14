@@ -2,6 +2,7 @@ package org.jsoup.integration.netty;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -20,6 +21,7 @@ import org.jsoup.integration.TestServer;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.List;
 
 /**
  Hosts the jsoup HTTP proxy listeners on Netty.
@@ -97,7 +99,7 @@ public final class NettyProxyServer {
     }
 
     /**
-     Binds one proxy listener with the supplied auth mode
+     Binds a proxy listener with the supplied auth mode
      */
     private static Channel bind(boolean alwaysAuth) throws InterruptedException {
         return new ServerBootstrap()
@@ -110,13 +112,36 @@ public final class NettyProxyServer {
                     if (alwaysAuth) {
                         AuthedConnections.add(ch);
                     }
-                    ch.pipeline().addLast(new HttpServerCodec());
+                    // split decode/encode so that CONNECT can pause request decoding while the 200 response is writing:
+                    ch.pipeline().addLast(new ProxyRequestDecoder());
+                    ch.pipeline().addLast(new HttpResponseEncoder());
                     ch.pipeline().addLast(new ProxyFrontendHandler(alwaysAuth));
                 }
             })
             .bind(NettySupport.Localhost, 0)
             .sync()
             .channel();
+    }
+
+    /**
+     Decodes proxy requests and stops after CONNECT, so tunnel bytes stay buffered for handoff
+     */
+    private static final class ProxyRequestDecoder extends HttpRequestDecoder {
+        @Override
+        protected void decode(ChannelHandlerContext ctx, ByteBuf input, List<Object> output) throws Exception {
+            int firstOutput = output.size();
+            setSingleDecode(false);
+            super.decode(ctx, input, output);
+
+            for (int i = firstOutput; i < output.size(); i++) {
+                Object message = output.get(i);
+                if (message instanceof HttpRequest && HttpMethod.CONNECT.equals(((HttpRequest) message).method())) {
+                    // keep anyy already buffered TLS bytes here until the tunnel relay is in place:
+                    setSingleDecode(true);
+                    return;
+                }
+            }
+        }
     }
 
     /**
@@ -212,6 +237,7 @@ public final class NettyProxyServer {
                 return;
             }
 
+            pauseClientReads(ctx);
             Bootstrap bootstrap = new Bootstrap()
                 .group(ioGroup)
                 .channel(NioSocketChannel.class)
@@ -223,14 +249,29 @@ public final class NettyProxyServer {
                     }
                 });
 
-            bootstrap.connect(target.host, target.port).addListener((ChannelFutureListener) future -> {
-                if (!future.isSuccess()) {
-                    sendSimpleResponse(ctx, request, HttpResponseStatus.BAD_GATEWAY, "Bad Gateway");
-                    return;
-                }
+            bootstrap.connect(target.host, target.port)
+                .addListener((ChannelFutureListener) future ->
+                    ctx.executor().execute(() -> finishConnectRequest(ctx, request, future)));
+        }
 
-                establishTunnel(ctx, future.channel());
-            });
+        /**
+         Finishes the asynchronous CONNECT upstream connection on the client channel event loop.
+         */
+        private void finishConnectRequest(ChannelHandlerContext ctx, HttpRequest request, ChannelFuture future) {
+            if (!ctx.channel().isActive()) {
+                if (future.isSuccess()) {
+                    future.channel().close();
+                }
+                return;
+            }
+
+            if (!future.isSuccess()) {
+                resumeClientReads(ctx);
+                sendSimpleResponse(ctx, request, HttpResponseStatus.BAD_GATEWAY, "Bad Gateway");
+                return;
+            }
+
+            establishTunnel(ctx, future.channel());
         }
 
         /**
@@ -285,12 +326,27 @@ public final class NettyProxyServer {
                 }
 
                 ChannelPipeline pipeline = ctx.pipeline();
-                if (pipeline.get(HttpServerCodec.class) != null) {
-                    pipeline.remove(HttpServerCodec.class);
-                }
+                // install the relay before removing the decoder. removal forwards buffered tunnel bytes:
                 pipeline.replace(this, "proxyTunnelRelay", new TunnelRelayHandler(upstream));
+                pipeline.remove(ProxyRequestDecoder.class);
+                pipeline.remove(HttpResponseEncoder.class);
+                resumeClientReads(ctx);
             });
         }
+    }
+
+    /**
+     Pauses future client reads while a CONNECT tunnel is being installed
+     */
+    private static void pauseClientReads(ChannelHandlerContext ctx) {
+        ctx.channel().config().setAutoRead(false);
+    }
+
+    /**
+     Resumes client reads after a paused CONNECT handoff is complete
+     */
+    private static void resumeClientReads(ChannelHandlerContext ctx) {
+        ctx.channel().config().setAutoRead(true);
     }
 
     /**
